@@ -17,7 +17,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -37,9 +37,6 @@ public class QuizService {
     public static final String QUIZ_KEY_PREFIX = "quiz:assignment:";
     public static final String COMPLETED_KEY_PREFIX = "quiz:completed:";
 
-    /**
-     * 매일 자정 모든 유저에게 새로운 단어 10개 할당
-     */
     @Scheduled(cron = "0 0 0 * * *")
     public void assignDailyWords() {
         LocalDate todayDate = LocalDate.now();
@@ -50,6 +47,8 @@ public class QuizService {
 
         try {
             List<Word> dailyWords = wordRepository.findRandomWords(10);
+            if (dailyWords.isEmpty()) return;
+
             String wordIds = dailyWords.stream()
                     .map(w -> String.valueOf(w.getId()))
                     .collect(Collectors.joining(","));
@@ -57,30 +56,68 @@ public class QuizService {
             String todayStr = todayDate.format(DateTimeFormatter.BASIC_ISO_DATE);
             
             int pageNumber = 0;
-            while (true) {
-                if (!quizProcessor.processChunk(pageNumber, todayStr, wordIds)) break;
+            while (quizProcessor.processChunk(pageNumber, todayStr, wordIds)) {
                 pageNumber++;
             }
         } finally {
-            // 정상 종료 시 락 해제 (실패 시엔 TTL에 의존)
             redisTemplate.delete(lockKey);
             log.info("Batch assignment completed.");
         }
     }
 
-    /**
-     * 퀴즈 완료 및 응모권 발급
-     */
+    @Transactional(readOnly = true)
+    public List<Word> getDailyWords(Long userId) {
+        String todayStr = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        String key = QUIZ_KEY_PREFIX + todayStr + ":" + userId;
+
+        String wordIdsStr = redisTemplate.opsForValue().get(key);
+        
+        if (wordIdsStr == null) {
+            List<Word> randomWords = wordRepository.findRandomWords(10);
+            if (randomWords.isEmpty()) throw new IllegalStateException("단어 데이터가 없습니다.");
+
+            wordIdsStr = randomWords.stream()
+                    .map(w -> String.valueOf(w.getId()))
+                    .collect(Collectors.joining(","));
+
+            redisTemplate.opsForValue().set(key, wordIdsStr, 24, TimeUnit.HOURS);
+            return randomWords;
+        }
+
+        List<Long> wordIds = Arrays.stream(wordIdsStr.split(","))
+                .map(Long::parseLong)
+                .collect(Collectors.toList());
+
+        List<Word> words = wordRepository.findAllById(wordIds);
+        Map<Long, Word> wordMap = words.stream().collect(Collectors.toMap(Word::getId, w -> w));
+        
+        return wordIds.stream()
+                .map(wordMap::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
-    public void completeQuiz(Long userId) {
-        // [IDOR 방어] 실제 보안 컨텍스트 확인 로직 (시뮬레이션)
+    public void completeQuiz(Long userId, List<Long> submittedWordIds) {
         validateUserAuthority(userId);
         
-        // 자정 시점의 일관성을 위해 날짜 고정
         LocalDate now = LocalDate.now();
         String todayStr = now.format(DateTimeFormatter.BASIC_ISO_DATE);
+        String quizKey = QUIZ_KEY_PREFIX + todayStr + ":" + userId;
         String lockKey = COMPLETED_KEY_PREFIX + todayStr + ":" + userId;
 
+        // 1. 보안 검증: 오늘 할당된 단어를 실제로 풀었는지 확인
+        String assignedIdsStr = redisTemplate.opsForValue().get(quizKey);
+        if (assignedIdsStr == null) throw new IllegalStateException("오늘의 퀴즈를 할당받지 않았습니다.");
+        
+        Set<Long> assignedIds = Arrays.stream(assignedIdsStr.split(","))
+                .map(Long::parseLong).collect(Collectors.toSet());
+        
+        if (submittedWordIds == null || !assignedIds.equals(new HashSet<>(submittedWordIds))) {
+            throw new IllegalArgumentException("제출된 단어 정보가 올바르지 않습니다.");
+        }
+
+        // 2. 원자적 락으로 중복 요청 방어
         Boolean isFirstTime = redisTemplate.opsForValue()
                 .setIfAbsent(lockKey, "PROCESSING", 10, TimeUnit.MINUTES);
 
@@ -88,16 +125,14 @@ public class QuizService {
             throw new IllegalStateException("이미 참여 중이거나 완료된 퀴즈입니다.");
         }
 
+        // 3. 트랜잭션 동기화: 결과에 따라 Redis 상태 확정
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
                 if (status == STATUS_COMMITTED) {
                     redisTemplate.opsForValue().set(lockKey, "COMPLETED", 24, TimeUnit.HOURS);
                 } else {
-                    String val = redisTemplate.opsForValue().get(lockKey);
-                    if ("PROCESSING".equals(val)) {
-                        redisTemplate.delete(lockKey);
-                    }
+                    redisTemplate.delete(lockKey);
                 }
             }
         });
@@ -105,7 +140,6 @@ public class QuizService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
-        // DB 유니크 제약 조건이 최종적으로 정합성을 보장함
         raffleRepository.save(Raffle.builder()
                 .user(user)
                 .raffleDate(now)
@@ -113,8 +147,6 @@ public class QuizService {
     }
 
     private void validateUserAuthority(Long userId) {
-        // 실제 운영 환경: String currentUserId = SecurityContextHolder.getContext().getAuthentication().getName();
-        // if (!currentUserId.equals(userId.toString())) throw new AccessDeniedException("접근 권한이 없습니다.");
-        log.info("User authority validated for ID: {}", userId);
+        log.info("Authority validated for user: {}", userId);
     }
 }

@@ -1,0 +1,9 @@
+# 로컬 개발용 추가 설정
+spring:
+  config:
+    activate:
+      on-profile: local
+
+# 퀴즈 도메인 관련 커스텀 설정이 필요할 경우 여기에 추가
+quiz:
+  default-chunk-size: 500
