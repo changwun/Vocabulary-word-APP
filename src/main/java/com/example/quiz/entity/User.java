@@ -3,8 +3,6 @@ package com.example.quiz.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
-
 @Entity
 @Table(name = "users")
 @Getter
@@ -17,11 +15,22 @@ public class User {
     @Column(unique = true, nullable = false)
     private String username;
 
+    @Column(unique = true, nullable = false)
     private String email;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(nullable = false, length = 100)
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserRole role;
+
     @Builder
-    public User(String username, String email) {
+    public User(String username, String email, String password, UserRole role) {
         this.username = username;
         this.email = email;
+        this.password = password;
+        this.role = role != null ? role : UserRole.ROLE_USER;
     }
 }

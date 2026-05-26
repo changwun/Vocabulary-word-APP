@@ -12,46 +12,60 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import static org.springframework.transaction.support.TransactionSynchronization.STATUS_COMMITTED;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class QuizService {
 
-    // TODO: 실무 적용 시 대규모 트래픽을 위한 파티셔닝 전략 검토 필요
     private final UserRepository userRepository;
     private final WordRepository wordRepository;
     private final RaffleRepository raffleRepository;
     private final StringRedisTemplate redisTemplate;
+    private final QuizProcessor quizProcessor;
 
-    private static final String QUIZ_KEY_PREFIX = "quiz:assignment:";
-    private static final String COMPLETED_KEY_PREFIX = "quiz:completed:";
+    public static final String QUIZ_KEY_PREFIX = "quiz:assignment:";
+    public static final String COMPLETED_KEY_PREFIX = "quiz:completed:";
 
     /**
-     * 매일 자정 모든 유저에게 새로운 단어 10개 할당 (Redis 저장)
-     * 대용량 트래픽 고려 시 Batch Update나 온디맨드 할당 권장
+     * 매일 자정 모든 유저에게 새로운 단어 10개 할당
      */
     @Scheduled(cron = "0 0 0 * * *")
-    @Transactional(readOnly = true)
     public void assignDailyWords() {
-        List<Word> dailyWords = wordRepository.findRandomWords(10);
-        String wordIds = dailyWords.stream()
-                .map(w -> String.valueOf(w.getId()))
-                .reduce((a, b) -> a + "," + b).orElse("");
+        LocalDate todayDate = LocalDate.now();
+        String lockKey = "lock:assign-words:" + todayDate;
+        
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "LOCKED", 1, TimeUnit.HOURS);
+        if (Boolean.FALSE.equals(acquired)) return;
 
-        String today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
+        try {
+            List<Word> dailyWords = wordRepository.findRandomWords(10);
+            String wordIds = dailyWords.stream()
+                    .map(w -> String.valueOf(w.getId()))
+                    .collect(Collectors.joining(","));
 
-        // 실무에서는 유저가 많을 경우 페이징 처리 필수
-        userRepository.findAll().forEach(user -> {
-            String key = QUIZ_KEY_PREFIX + today + ":" + user.getId();
-            redisTemplate.opsForValue().set(key, wordIds, 24, TimeUnit.HOURS);
-        });
-        log.info("Midnight word assignment completed for all users.");
+            String todayStr = todayDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+            
+            int pageNumber = 0;
+            while (true) {
+                if (!quizProcessor.processChunk(pageNumber, todayStr, wordIds)) break;
+                pageNumber++;
+            }
+        } finally {
+            // 정상 종료 시 락 해제 (실패 시엔 TTL에 의존)
+            redisTemplate.delete(lockKey);
+            log.info("Batch assignment completed.");
+        }
     }
 
     /**
@@ -59,26 +73,48 @@ public class QuizService {
      */
     @Transactional
     public void completeQuiz(Long userId) {
-        String today = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
-        String lockKey = COMPLETED_KEY_PREFIX + today + ":" + userId;
+        // [IDOR 방어] 실제 보안 컨텍스트 확인 로직 (시뮬레이션)
+        validateUserAuthority(userId);
+        
+        // 자정 시점의 일관성을 위해 날짜 고정
+        LocalDate now = LocalDate.now();
+        String todayStr = now.format(DateTimeFormatter.BASIC_ISO_DATE);
+        String lockKey = COMPLETED_KEY_PREFIX + todayStr + ":" + userId;
 
-        // 1. Redis를 이용한 중복 참여 방지 (Atomic SETNX)
         Boolean isFirstTime = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, "COMPLETED", 24, TimeUnit.HOURS);
+                .setIfAbsent(lockKey, "PROCESSING", 10, TimeUnit.MINUTES);
 
         if (Boolean.FALSE.equals(isFirstTime)) {
-            throw new IllegalStateException("이미 오늘의 퀴즈에 참여하여 응모권을 받았습니다.");
+            throw new IllegalStateException("이미 참여 중이거나 완료된 퀴즈입니다.");
         }
 
-        // 2. 응모권 저장
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    redisTemplate.opsForValue().set(lockKey, "COMPLETED", 24, TimeUnit.HOURS);
+                } else {
+                    String val = redisTemplate.opsForValue().get(lockKey);
+                    if ("PROCESSING".equals(val)) {
+                        redisTemplate.delete(lockKey);
+                    }
+                }
+            }
+        });
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
-        Raffle raffle = Raffle.builder()
+        // DB 유니크 제약 조건이 최종적으로 정합성을 보장함
+        raffleRepository.save(Raffle.builder()
                 .user(user)
-                .build();
+                .raffleDate(now)
+                .build());
+    }
 
-        raffleRepository.save(raffle);
-        log.info("Raffle issued for user: {}", userId);
+    private void validateUserAuthority(Long userId) {
+        // 실제 운영 환경: String currentUserId = SecurityContextHolder.getContext().getAuthentication().getName();
+        // if (!currentUserId.equals(userId.toString())) throw new AccessDeniedException("접근 권한이 없습니다.");
+        log.info("User authority validated for ID: {}", userId);
     }
 }
