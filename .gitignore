@@ -2,3 +2,10 @@ node_modules/
 .env
 mysql_data/
 redis_data/
+.idea/
+.gradle/
+build/
+out/
+bin/
+*.class
+*.log

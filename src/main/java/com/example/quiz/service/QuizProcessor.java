@@ -54,3 +54,4 @@ public class QuizProcessor {
 
         return userSlice.hasNext();
     }
+}
