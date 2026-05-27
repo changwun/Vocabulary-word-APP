@@ -22,9 +22,17 @@ public class AuthService {
 
 
     @Transactional
-    public void signUp(String username, String email, String password, QuizDto.QuizMode quizMode) {
+    public void signUp(String username, String email, String phoneNumber, String password, QuizDto.QuizMode quizMode, boolean privacyPolicyAgreed) {
         if (userRepository.findByEmail(email).isPresent()) {
-            throw new IllegalStateException("이미 존재하는 이메일입니다.");
+            throw new IllegalStateException("이미 가입된 이메일입니다.");
+        }
+        
+        if (userRepository.existsByPhoneNumber(phoneNumber)) {
+            throw new IllegalStateException("이미 사용 중인 전화번호입니다.");
+        }
+
+        if (!privacyPolicyAgreed) {
+            throw new IllegalArgumentException("개인정보 수집 및 이용에 동의해야 합니다.");
         }
 
         // 실무 암호화 시뮬레이션 (BCrypt 등을 사용해야 함)
@@ -33,9 +41,11 @@ public class AuthService {
         User user = User.builder()
                 .username(username)
                 .email(email)
+                .phoneNumber(phoneNumber)
                 .password(encodedPassword)
                 .role(UserRole.ROLE_USER)
                 .quizMode(quizMode)
+                .privacyPolicyAgreed(privacyPolicyAgreed)
                 .build();
 
         userRepository.save(user);

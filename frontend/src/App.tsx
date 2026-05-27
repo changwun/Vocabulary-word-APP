@@ -2,10 +2,11 @@ import { useState } from 'react';
 import Auth from './components/Auth';
 import Quiz from './components/Quiz';
 import MyPage from './components/MyPage';
+import EventList from './components/EventList';
 
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [view, setView] = useState<'QUIZ' | 'MYPAGE'>('QUIZ');
+  const [view, setView] = useState<'QUIZ' | 'MYPAGE' | 'EVENT'>('QUIZ');
 
   const handleLoginSuccess = (newToken: string) => {
     setToken(newToken);
@@ -17,43 +18,63 @@ function App() {
     setView('QUIZ');
   };
 
+  const renderContent = () => {
+    if (!token) return <Auth onLoginSuccess={handleLoginSuccess} />;
+    
+    switch (view) {
+      case 'MYPAGE': return <MyPage onNavigateToEvents={() => setView('EVENT')} />;
+      case 'EVENT': return <EventList />;
+      default: return <Quiz />;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 py-10">
-      <header className="max-w-2xl mx-auto flex justify-between items-center mb-10 px-4">
+    <div className="min-h-screen bg-gray-50 py-6">
+      <header className="max-w-4xl mx-auto flex justify-between items-center mb-8 px-4">
         <h1 
-          className="text-4xl font-extrabold text-blue-600 cursor-pointer"
+          className="text-4xl font-black text-blue-600 cursor-pointer tracking-tighter"
           onClick={() => setView('QUIZ')}
         >
-          BitPop Quiz
+          럭키보카
         </h1>
+        
         {token && (
-          <div className="flex gap-4 items-center">
+          <nav className="flex gap-2 items-center bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
             <button
-              onClick={() => setView(view === 'QUIZ' ? 'MYPAGE' : 'QUIZ')}
-              className="text-sm font-bold text-gray-700 bg-white px-4 py-2 rounded-full shadow hover:bg-gray-50"
+              onClick={() => setView('QUIZ')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition ${view === 'QUIZ' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
             >
-              {view === 'QUIZ' ? '마이페이지' : '퀴즈로 돌아가기'}
+              Quiz
             </button>
+            <button
+              onClick={() => setView('EVENT')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition ${view === 'EVENT' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              Events
+            </button>
+            <button
+              onClick={() => setView('MYPAGE')}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition ${view === 'MYPAGE' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+              My
+            </button>
+            <div className="w-px h-4 bg-gray-200 mx-1"></div>
             <button
               onClick={handleLogout}
-              className="text-sm bg-gray-200 px-3 py-2 rounded-full hover:bg-gray-300"
+              className="px-3 py-2 text-sm font-bold text-red-400 hover:text-red-600 transition"
             >
-              로그아웃
+              Logout
             </button>
-          </div>
+          </nav>
         )}
       </header>
 
       <main>
-        {!token ? (
-          <Auth onLoginSuccess={handleLoginSuccess} />
-        ) : (
-          view === 'QUIZ' ? <Quiz /> : <MyPage />
-        )}
+        {renderContent()}
       </main>
 
-      <footer className="text-center mt-20 text-gray-500 text-sm">
-        &copy; 2026 BitPop Quiz MVP
+      <footer className="text-center mt-20 text-gray-400 text-xs font-medium uppercase tracking-widest">
+        &copy; 2026 럭키보카. Engineering Excellence.
       </footer>
     </div>
   );

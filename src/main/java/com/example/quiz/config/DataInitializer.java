@@ -1,12 +1,16 @@
 package com.example.quiz.config;
 
+import com.example.quiz.entity.Event;
 import com.example.quiz.entity.Word;
+import com.example.quiz.repository.EventRepository;
+import com.example.quiz.repository.RaffleRepository;
 import com.example.quiz.repository.WordRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -16,9 +20,12 @@ import java.util.List;
 public class DataInitializer implements CommandLineRunner {
 
     private final WordRepository wordRepository;
+    private final EventRepository eventRepository;
+    private final RaffleRepository raffleRepository;
 
     @Override
     public void run(String... args) {
+        // 단어 데이터 초기화
         if (wordRepository.count() == 0) {
             log.info("Initializing default word data...");
             List<Word> defaultWords = Arrays.asList(
@@ -47,8 +54,37 @@ public class DataInitializer implements CommandLineRunner {
             );
             wordRepository.saveAll(defaultWords);
             log.info("Successfully seeded {} words.", defaultWords.size());
-        } else {
-            log.info("Word data already exists. Skipping initialization.");
+        }
+
+        // 이벤트 데이터 초기화 (기존 데이터 삭제 후 갱신)
+        // 외래 키 제약 조건(FK) 때문에 Raffle 데이터를 먼저 지워야 합니다.
+        log.info("Refreshing real-world event data...");
+        try {
+            raffleRepository.deleteAll(); 
+            eventRepository.deleteAll(); 
+            
+            List<Event> defaultEvents = Arrays.asList(
+                Event.builder()
+                    .title("주간 커피 타임 ☕")
+                    .description("일주일 동안 퀴즈를 꾸준히 풀어보세요! 추첨을 통해 10분께 커피를 드립니다.")
+                    .prize("스타벅스 아메리카노 (10명)")
+                    .startDate(LocalDateTime.now().minusDays(1))
+                    .endDate(LocalDateTime.now().plusDays(7))
+                    .active(true)
+                    .build(),
+                Event.builder()
+                    .title("오늘의 달콤한 충전 🍬")
+                    .description("오늘의 퀴즈를 완벽하게 맞춘 분들 중 추첨을 통해 달콤한 선물을 드립니다!")
+                    .prize("편의점 과자/사탕 기프티콘")
+                    .startDate(LocalDateTime.now().minusDays(1))
+                    .endDate(LocalDateTime.now().plusDays(1))
+                    .active(true)
+                    .build()
+            );
+            eventRepository.saveAll(defaultEvents);
+            log.info("Successfully refreshed events.");
+        } catch (Exception e) {
+            log.error("Failed to refresh events: {}", e.getMessage());
         }
     }
 }

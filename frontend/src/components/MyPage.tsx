@@ -7,10 +7,13 @@ interface UserInfo {
   quizMode: string;
 }
 
-const MyPage: React.FC = () => {
+interface MyPageProps {
+  onNavigateToEvents: () => void;
+}
+
+const MyPage: React.FC<MyPageProps> = ({ onNavigateToEvents }) => {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isusing, setIsUsing] = useState(false);
 
   useEffect(() => {
     fetchUserInfo();
@@ -37,33 +40,6 @@ const MyPage: React.FC = () => {
     }
   };
 
-  const handleUseRaffle = async () => {
-    if (userInfo && userInfo.raffleCount <= 0) {
-      alert('사용 가능한 응모권이 없습니다.');
-      return;
-    }
-
-    if (!window.confirm('응모권 1개를 사용하여 경품에 응모하시겠습니까?')) {
-      return;
-    }
-
-    setIsUsing(true);
-    try {
-      const response = await api.post('/api/raffle/use'); // 실제로는 백엔드 URL 구조에 맞춰야 함
-      // 현재 백엔드 WebConfig에 따라 /api가 붙어있으므로 /raffle/use로 호출
-      // 만약 axios.ts에 baseURL이 /api까지 되어있다면 '/raffle/use'
-      await api.post('/raffle/use'); 
-      
-      alert('응모 완료! 행운을 빕니다. 🍀');
-      fetchUserInfo(); // 개수 갱신
-    } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.data || '응모 중 오류가 발생했습니다.';
-      alert(msg);
-    } finally {
-      setIsUsing(false);
-    }
-  };
-
   if (loading) return <div className="text-center mt-10 text-xl font-bold">로딩 중...</div>;
 
   return (
@@ -84,11 +60,10 @@ const MyPage: React.FC = () => {
               <span className="text-xl font-bold">Tickets</span>
             </div>
             <button
-              onClick={handleUseRaffle}
-              disabled={isusing || (userInfo?.raffleCount || 0) <= 0}
-              className={`mt-6 w-full py-3 bg-white text-blue-600 rounded-xl font-black text-lg shadow-md transition transform active:scale-95 disabled:opacity-50 disabled:active:scale-100 ${isusing ? 'animate-pulse' : 'hover:bg-blue-50'}`}
+              onClick={onNavigateToEvents}
+              className="mt-6 w-full py-3 bg-white text-blue-600 rounded-xl font-black text-lg shadow-md transition transform active:scale-95 hover:bg-blue-50"
             >
-              {isusing ? 'Processing...' : 'Use Ticket Now'}
+              Go to Events
             </button>
           </div>
           {/* Decorative Circle */}

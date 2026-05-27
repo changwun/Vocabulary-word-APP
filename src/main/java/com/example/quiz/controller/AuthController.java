@@ -18,10 +18,16 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @Operation(summary = "회원가입", description = "새로운 사용자를 등록합니다. 퀴즈 모드(영->한, 한->영)를 선택할 수 있습니다.")
+    @Operation(summary = "회원가입", description = "새로운 사용자를 등록합니다. 전화번호, 개인정보 동의 및 퀴즈 모드를 포함합니다.")
     @PostMapping("/signup")
     public ResponseEntity<String> signUp(@RequestBody SignUpRequest request) {
-        authService.signUp(request.getUsername(), request.getEmail(), request.getPassword(), request.getQuizMode());
+        authService.signUp(
+                request.getUsername(), 
+                request.getEmail(), 
+                request.getPhoneNumber(),
+                request.getPassword(), 
+                request.getQuizMode(),
+                request.isPrivacyPolicyAgreed());
         return ResponseEntity.ok("회원가입 성공");
     }
 
@@ -36,8 +42,10 @@ public class AuthController {
     static class SignUpRequest {
         private String username;
         private String email;
+        private String phoneNumber;
         private String password;
         private QuizDto.QuizMode quizMode;
+        private boolean privacyPolicyAgreed;
     }
 
     @Getter @Setter
