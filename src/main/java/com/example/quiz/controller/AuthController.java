@@ -1,6 +1,7 @@
 package com.example.quiz.controller;
 
 import com.example.quiz.service.AuthService;
+import com.example.quiz.dto.QuizDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Getter;
@@ -17,10 +18,10 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @Operation(summary = "회원가입", description = "새로운 사용자를 등록합니다.")
+    @Operation(summary = "회원가입", description = "새로운 사용자를 등록합니다. 퀴즈 모드(영->한, 한->영)를 선택할 수 있습니다.")
     @PostMapping("/signup")
     public ResponseEntity<String> signUp(@RequestBody SignUpRequest request) {
-        authService.signUp(request.getUsername(), request.getEmail(), request.getPassword());
+        authService.signUp(request.getUsername(), request.getEmail(), request.getPassword(), request.getQuizMode());
         return ResponseEntity.ok("회원가입 성공");
     }
 
@@ -36,6 +37,7 @@ public class AuthController {
         private String username;
         private String email;
         private String password;
+        private QuizDto.QuizMode quizMode;
     }
 
     @Getter @Setter

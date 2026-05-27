@@ -7,6 +7,8 @@ import com.example.quiz.security.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.quiz.dto.QuizDto;
+import com.example.quiz.entity.User;
 
 @Service
 @RequiredArgsConstructor
@@ -18,8 +20,9 @@ public class AuthService {
     // 실제로는 Spring Security의 BCryptPasswordEncoder를 주입받아 사용해야 함
     // private final PasswordEncoder passwordEncoder;
 
+
     @Transactional
-    public void signUp(String username, String email, String password) {
+    public void signUp(String username, String email, String password, QuizDto.QuizMode quizMode) {
         if (userRepository.findByEmail(email).isPresent()) {
             throw new IllegalStateException("이미 존재하는 이메일입니다.");
         }
@@ -32,6 +35,7 @@ public class AuthService {
                 .email(email)
                 .password(encodedPassword)
                 .role(UserRole.ROLE_USER)
+                .quizMode(quizMode)
                 .build();
 
         userRepository.save(user);

@@ -24,6 +24,12 @@ jwt:
   secret: ${JWT_SECRET:your_very_long_and_secure_random_secret_key_at_least_32_chars}
   expiration: 3600000 # 1시간
 
+# 네이버 API 설정
+naver:
+  client:
+    id: gfS3HFJdKmCVlsJ1ymeG
+    secret: a9xRTo7YNl
+
 logging:
   level:
     org.hibernate.SQL: debug
