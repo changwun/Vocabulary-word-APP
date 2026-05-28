@@ -1,12 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Auth from './components/Auth';
 import Quiz from './components/Quiz';
 import MyPage from './components/MyPage';
 import EventList from './components/EventList';
+import AdminDashboard from './components/AdminDashboard';
+import api from './api/axios';
 
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [view, setView] = useState<'QUIZ' | 'MYPAGE' | 'EVENT'>('QUIZ');
+  const [view, setView] = useState<'QUIZ' | 'MYPAGE' | 'EVENT' | 'ADMIN'>('QUIZ');
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (token) {
+      fetchUserRole();
+    }
+  }, [token]);
+
+  const fetchUserRole = async () => {
+    try {
+      const response = await api.get('/user/me');
+      setUserRole(response.data.role);
+    } catch (err) {
+      handleLogout();
+    }
+  };
 
   const handleLoginSuccess = (newToken: string) => {
     setToken(newToken);
@@ -15,6 +33,7 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setToken(null);
+    setUserRole(null);
     setView('QUIZ');
   };
 
@@ -24,6 +43,7 @@ function App() {
     switch (view) {
       case 'MYPAGE': return <MyPage onNavigateToEvents={() => setView('EVENT')} />;
       case 'EVENT': return <EventList />;
+      case 'ADMIN': return <AdminDashboard />;
       default: return <Quiz />;
     }
   };
@@ -40,6 +60,14 @@ function App() {
         
         {token && (
           <nav className="flex gap-2 items-center bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
+            {userRole === 'ROLE_ADMIN' && (
+              <button
+                onClick={() => setView('ADMIN')}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition ${view === 'ADMIN' ? 'bg-red-500 text-white shadow-md' : 'text-red-400 hover:bg-red-50'}`}
+              >
+                Admin
+              </button>
+            )}
             <button
               onClick={() => setView('QUIZ')}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition ${view === 'QUIZ' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}

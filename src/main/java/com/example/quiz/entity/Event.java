@@ -33,4 +33,12 @@ public class Event {
 
     @Builder.Default
     private boolean active = true;
+
+    @Builder.Default
+    private boolean drawn = false; // 추첨 완료 여부 추가
+
+    public void markAsDrawn() {
+        this.drawn = true;
+        this.active = false; // 추첨이 끝나면 비활성화
+    }
 }

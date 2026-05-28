@@ -4,6 +4,8 @@ import com.example.quiz.dto.QuizDto;
 import com.example.quiz.entity.User;
 import com.example.quiz.repository.UserRepository;
 import com.example.quiz.security.JwtProvider;
+import com.example.quiz.service.AdminService;
+import com.example.quiz.service.RaffleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,43 +13,51 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "사용자(User)", description = "사용자 정보 및 설정 관리를 담당하는 API입니다.")
-@RestController
-@RequestMapping("/api/user")
-@RequiredArgsConstructor
-public class UserController {
+import java.util.List;
 
+@Tag(name = "관리자(Admin)", description = "서비스 관리 및 통계 조회를 담당하는 API입니다.")
+@RestController
+@RequestMapping("/api/admin")
+@RequiredArgsConstructor
+public class AdminController {
+
+    private final AdminService adminService;
+    private final RaffleService raffleService;
     private final UserRepository userRepository;
     private final JwtProvider jwtProvider;
 
-    @Operation(summary = "내 정보 조회", description = "현재 로그인한 사용자의 정보(응모권 개수, 퀴즈 모드 등)를 조회합니다.")
-    @GetMapping("/me")
-    public ResponseEntity<QuizDto.UserInfoResponse> getMyInfo(
+    @Operation(summary = "대시보드 통계 조회", description = "전체 유저 수, 응모 횟수, 이벤트별 참여자 수 등을 조회합니다. 관리자 전용입니다.")
+    @GetMapping("/dashboard")
+    public ResponseEntity<QuizDto.AdminDashboardResponse> getDashboard(
             @Parameter(description = "Bearer {token}") @RequestHeader("Authorization") String authHeader) {
+        
         Long userId = authenticate(authHeader);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        return ResponseEntity.ok(QuizDto.UserInfoResponse.builder()
-                .username(user.getUsername())
-                .raffleCount(user.getRaffleCount())
-                .quizMode(user.getQuizMode())
-                .role(user.getRole().name())
-                .build());
+        if (!user.isAdmin()) {
+            throw new IllegalStateException("관리자 권한이 없습니다.");
+        }
+
+        return ResponseEntity.ok(adminService.getDashboardStats());
     }
 
-    @Operation(summary = "퀴즈 모드 변경", description = "퀴즈 풀이 모드(영->한, 한->영)를 변경합니다.")
-    @PutMapping("/mode")
-    public ResponseEntity<String> updateQuizMode(
+    @Operation(summary = "이벤트 당첨자 추첨", description = "특정 이벤트의 응모자 중 당첨자를 랜덤 선발합니다. 관리자 전용입니다.")
+    @PostMapping("/event/{eventId}/draw")
+    public ResponseEntity<List<String>> drawWinners(
             @Parameter(description = "Bearer {token}") @RequestHeader("Authorization") String authHeader,
-            @RequestBody QuizDto.ModeUpdateRequest request) {
+            @PathVariable Long eventId,
+            @RequestParam(defaultValue = "10") int count) {
+        
         Long userId = authenticate(authHeader);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        user.updateQuizMode(request.getQuizMode());
-        userRepository.save(user);
-        return ResponseEntity.ok("퀴즈 모드가 변경되었습니다.");
+        if (!user.isAdmin()) {
+            throw new IllegalStateException("관리자 권한이 없습니다.");
+        }
+
+        return ResponseEntity.ok(raffleService.drawWinners(eventId, count));
     }
 
     private Long authenticate(String authHeader) {

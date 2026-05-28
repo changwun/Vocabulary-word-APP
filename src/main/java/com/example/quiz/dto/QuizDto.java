@@ -1,5 +1,6 @@
 package com.example.quiz.dto;
 
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,7 +16,7 @@ public class QuizDto {
     @Builder
     public static class QuestionResponse {
         private Long wordId;
-        private String question; // 영어 단어 또는 한글 뜻
+        private String question;
         private QuizMode mode;
     }
 
@@ -26,40 +27,35 @@ public class QuizDto {
         private Long wordId;
         private String answer;
     }
-@Getter
-@NoArgsConstructor
-@AllArgsConstructor
-public static class QuizCompleteRequest {
-    private List<AnswerRequest> answers;
-    private QuizMode mode;
-}
 
-@Getter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public static class QuizResultResponse {
-    private boolean success;
-    private List<WrongAnswerDetail> wrongDetails;
-    private String message;
-    private int raffleCount;
-}
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class QuizCompleteRequest {
+        private List<AnswerRequest> answers;
+        private QuizMode mode;
+    }
 
-@Getter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public static class WrongAnswerDetail {
-    private Long wordId;
-    private String question;
-    private String correctAnswer;
-    private String userAnswer;
-}
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class QuizResultResponse {
+        private boolean success;
+        private List<WrongAnswerDetail> wrongDetails;
+        private String message;
+        private int raffleCount;
+    }
 
-public enum QuizMode {
-
-        EN_TO_KO, // 영어 보고 한글 맞추기
-        KO_TO_EN  // 한글 보고 영어 맞추기
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class WrongAnswerDetail {
+        private Long wordId;
+        private String question;
+        private String correctAnswer;
+        private String userAnswer;
     }
 
     @Getter
@@ -70,6 +66,29 @@ public enum QuizMode {
         private String username;
         private int raffleCount;
         private QuizMode quizMode;
+        private String role; // 권한 추가
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class AdminDashboardResponse {
+        private long totalUsers;
+        private long totalRafflesUsed;
+        private long activeEventsCount;
+        private List<EventWinnerStat> eventStats;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class EventWinnerStat {
+        private Long eventId;
+        private String eventTitle;
+        private long participantCount;
+        private boolean isDrawn;
     }
 
     @Getter
@@ -77,5 +96,20 @@ public enum QuizMode {
     @AllArgsConstructor
     public static class ModeUpdateRequest {
         private QuizMode quizMode;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class WinnerAnnouncement {
+        private String maskedUsername;
+        private String maskedEmail;
+        private LocalDateTime wonAt;
+    }
+
+    public enum QuizMode {
+        EN_TO_KO,
+        KO_TO_EN
     }
 }

@@ -69,4 +69,8 @@ public class User {
         }
         this.raffleCount--;
     }
+
+    public boolean isAdmin() {
+        return this.role == UserRole.ROLE_ADMIN;
+    }
 }
