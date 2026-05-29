@@ -37,7 +37,7 @@ public class RaffleService {
     private final RedissonClient redissonClient;
 
     /**
-     * 응모권 사용 로직
+     * 응모권 사용 로직 (기간 검증 강화)
      */
     @Transactional
     public void useRaffle(Long userId, Long eventId) {
@@ -56,8 +56,16 @@ public class RaffleService {
             Event event = eventRepository.findById(eventId)
                     .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이벤트입니다."));
 
-            if (!event.isActive() || event.isDrawn()) {
-                throw new IllegalStateException("이미 마감된 이벤트입니다.");
+            LocalDateTime now = LocalDateTime.now();
+
+            // 1. 아직 시작되지 않은 이벤트인지 확인
+            if (now.isBefore(event.getStartDate())) {
+                throw new IllegalStateException("아직 이벤트 시작 전입니다. 내일부터 다시 시도해 주세요!");
+            }
+
+            // 2. 이미 종료되었거나 추첨 완료된 이벤트인지 확인
+            if (!event.isActive() || event.isDrawn() || now.isAfter(event.getEndDate())) {
+                throw new IllegalStateException("이미 종료되었거나 추첨이 완료된 이벤트입니다.");
             }
 
             user.useRaffle();
@@ -100,10 +108,10 @@ public class RaffleService {
     }
 
     /**
-     * 추첨 실행 로직 (예외 처리 강화)
+     * 추첨 실행 로직
      */
     @Transactional
-    public List<String> drawWinners(Long eventId, int winnerCount) {
+    public List<QuizDto.AdminWinnerDetail> drawWinners(Long eventId, int winnerCount) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이벤트입니다."));
 
@@ -113,12 +121,11 @@ public class RaffleService {
 
         List<Raffle> allEntries = raffleRepository.findAllByEvent(event);
         
-        // 1. 응모자가 0명인 경우 처리
         if (allEntries.isEmpty()) {
-            event.markAsDrawn(); // 추첨은 시도했으나 0명으로 종료
+            event.markAsDrawn();
             eventRepository.save(event);
             log.warn("이벤트 [{}]에 응모자가 없어 추첨 없이 종료되었습니다.", event.getTitle());
-            throw new IllegalStateException("응모자가 없어 추첨을 진행할 수 없습니다.");
+            return Collections.emptyList();
         }
 
         Collections.shuffle(allEntries);
@@ -129,23 +136,59 @@ public class RaffleService {
                 .limit(winnerCount)
                 .collect(Collectors.toList());
 
-        for (User winnerUser : winners) {
-            winnerRepository.save(Winner.builder()
-                    .user(winnerUser)
-                    .event(event)
-                    .build());
-        }
+        List<Winner> winnerEntities = winners.stream()
+                .map(u -> Winner.builder().user(u).event(event).build())
+                .collect(Collectors.toList());
+        
+        winnerRepository.saveAll(winnerEntities);
 
         event.markAsDrawn();
         eventRepository.save(event);
 
         return winners.stream()
-                .map(u -> maskName(u.getUsername()) + " (" + maskEmail(u.getEmail()) + ")")
+                .map(u -> QuizDto.AdminWinnerDetail.builder()
+                        .username(u.getUsername())
+                        .email(u.getEmail())
+                        .phoneNumber(u.getPhoneNumber())
+                        .wonAt(LocalDateTime.now())
+                        .build())
                 .collect(Collectors.toList());
     }
 
     /**
-     * 특정 날짜의 당첨 공지 조회
+     * 관리자용 전체 당첨 기록 조회
+     */
+    @Transactional(readOnly = true)
+    public List<QuizDto.AdminWinnerDetail> getAllAdminWinners() {
+        return winnerRepository.findAllByOrderByWonAtDesc().stream()
+                .map(this::toAdminWinnerDetail)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 관리자용 특정 날짜 당첨 기록 조회
+     */
+    @Transactional(readOnly = true)
+    public List<QuizDto.AdminWinnerDetail> getAdminWinnersByDate(LocalDate date) {
+        LocalDateTime start = date.atStartOfDay();
+        LocalDateTime end = date.atTime(LocalTime.MAX);
+        return winnerRepository.findAllByWonAtBetween(start, end).stream()
+                .map(this::toAdminWinnerDetail)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 관리자용 특정 이벤트 당첨자 조회
+     */
+    @Transactional(readOnly = true)
+    public List<QuizDto.AdminWinnerDetail> getAdminWinners(Long eventId) {
+        return winnerRepository.findAllByEventId(eventId).stream()
+                .map(this::toAdminWinnerDetail)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 유저 공지용 날짜별 조회 (마스킹 적용)
      */
     @Transactional(readOnly = true)
     public List<QuizDto.WinnerAnnouncement> getWinnersByDate(LocalDate date) {
@@ -170,6 +213,15 @@ public class RaffleService {
                         .wonAt(w.getWonAt())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    private QuizDto.AdminWinnerDetail toAdminWinnerDetail(Winner winner) {
+        return QuizDto.AdminWinnerDetail.builder()
+                .username(winner.getUser().getUsername())
+                .email(winner.getUser().getEmail())
+                .phoneNumber(winner.getUser().getPhoneNumber())
+                .wonAt(winner.getWonAt())
+                .build();
     }
 
     private String maskName(String name) {

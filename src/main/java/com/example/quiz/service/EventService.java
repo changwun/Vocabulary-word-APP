@@ -19,10 +19,10 @@ public class EventService {
     private final EventRepository eventRepository;
 
     /**
-     * Querydsl을 사용하여 현재 진행 중인 이벤트 목록 조회
+     * 현재 진행 중이거나 앞으로 예정된 이벤트 목록 조회
      */
     @Transactional(readOnly = true)
-    public List<Event> getActiveEvents() {
+    public List<Event> getVisibleEvents() {
         QEvent event = QEvent.event;
         LocalDateTime now = LocalDateTime.now();
 
@@ -30,10 +30,15 @@ public class EventService {
                 .selectFrom(event)
                 .where(
                     event.active.isTrue(),
-                    event.startDate.before(now),
-                    event.endDate.after(now)
+                    event.endDate.after(now) // 아직 끝나지 않은 이벤트만 노출
                 )
+                .orderBy(event.startDate.asc())
                 .fetch();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Event> getActiveEvents() {
+        return getVisibleEvents(); // UI 요구사항에 맞춰 예정된 이벤트도 포함
     }
 
     @Transactional

@@ -9,4 +9,5 @@ import java.util.List;
 public interface WinnerRepository extends JpaRepository<Winner, Long> {
     List<Winner> findAllByEventId(Long eventId);
     List<Winner> findAllByWonAtBetween(LocalDateTime start, LocalDateTime end);
+    List<Winner> findAllByOrderByWonAtDesc();
 }

@@ -1,11 +1,11 @@
 package com.example.quiz.dto;
 
-import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public class QuizDto {
@@ -66,7 +66,7 @@ public class QuizDto {
         private String username;
         private int raffleCount;
         private QuizMode quizMode;
-        private String role; // 권한 추가
+        private String role;
     }
 
     @Getter
@@ -94,18 +94,29 @@ public class QuizDto {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ModeUpdateRequest {
-        private QuizMode quizMode;
+    @Builder
+    public static class WinnerAnnouncement {
+        private String maskedUsername;
+        private String maskedEmail;
+        private LocalDateTime wonAt;
     }
 
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
     @Builder
-    public static class WinnerAnnouncement {
-        private String maskedUsername;
-        private String maskedEmail;
+    public static class AdminWinnerDetail {
+        private String username;
+        private String email;
+        private String phoneNumber;
         private LocalDateTime wonAt;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ModeUpdateRequest {
+        private QuizMode quizMode;
     }
 
     public enum QuizMode {
