@@ -1,0 +1,128 @@
+name: LuckyVoca CI/CD
+
+on:
+  push:
+    branches: [ "main", "feat/setup-cicd" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  DOCKER_IMAGE_BACKEND: ${{ secrets.DOCKER_USERNAME }}/luckyvoca-backend
+  DOCKER_IMAGE_FRONTEND: ${{ secrets.DOCKER_USERNAME }}/luckyvoca-frontend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Backend Build & Test
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build and Test Backend with Gradle
+        run: ./gradlew build
+        env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      # 2. Frontend Build
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend dependencies
+        run: npm install
+        working-directory: ./frontend
+
+      - name: Build Frontend
+        run: npm run build
+        working-directory: ./frontend
+
+      # 3. Docker Login
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 4. Extract Branch and SHA for tagging
+      - name: Get tag
+        id: vars
+        run: |
+          echo "tag=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      # 5. Build and Push Backend Image
+      - name: Build and Push Backend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE_BACKEND }}:${{ steps.vars.outputs.tag }}
+            ${{ env.DOCKER_IMAGE_BACKEND }}:latest
+
+      # 6. Build and Push Frontend Image
+      - name: Build and Push Frontend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE_FRONTEND }}:${{ steps.vars.outputs.tag }}
+            ${{ env.DOCKER_IMAGE_FRONTEND }}:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/setup-cicd'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get tag
+        id: vars
+        run: |
+          echo "tag=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Copy docker-compose.yml to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER || 'ubuntu' }}
+          key: ${{ secrets.SERVER_KEY }}
+          source: "docker-compose.yml"
+          target: "~/app"
+
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER || 'ubuntu' }}
+          key: ${{ secrets.SERVER_KEY }}
+          script: |
+            cd ~/app
+            echo "DOCKER_IMAGE_BACKEND=${{ env.DOCKER_IMAGE_BACKEND }}" > .env
+            echo "DOCKER_IMAGE_FRONTEND=${{ env.DOCKER_IMAGE_FRONTEND }}" >> .env
+            echo "DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}" >> .env
+            echo "DB_USERNAME=${{ secrets.DB_USERNAME || 'quiz_user' }}" >> .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+            
+            echo "Deploying version: ${{ steps.vars.outputs.tag }}"
+            # We use 'latest' for the compose file to keep it simple, 
+            # or we could use the specific tag. 
+            # Since build-and-push tags both, 'latest' is fine for the simplified compose.
+            docker compose pull
+            docker compose up -d
