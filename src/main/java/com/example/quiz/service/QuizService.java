@@ -5,6 +5,8 @@ import com.example.quiz.entity.User;
 import com.example.quiz.entity.Word;
 import com.example.quiz.repository.UserRepository;
 import com.example.quiz.repository.WordRepository;
+import com.example.quiz.entity.WrongAnswer;
+import com.example.quiz.repository.WrongAnswerRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -25,6 +27,7 @@ public class QuizService {
 
     private final UserRepository userRepository;
     private final WordRepository wordRepository;
+    private final WrongAnswerRepository wrongAnswerRepository;
     private final StringRedisTemplate redisTemplate;
     private final QuizProcessor quizProcessor;
     private final NaverDictionaryClient naverDictionaryClient;
@@ -176,6 +179,9 @@ public class QuizService {
                     .correctAnswer(dbAnswer)
                     .userAnswer(userAnswer.isEmpty() ? "(빈칸)" : userAnswer)
                     .build());
+
+            // 오답 노트 저장 로직 추가
+            saveWrongAnswer(user, word);
         }
 
         boolean isSuccess = wrongDetails.isEmpty();
@@ -194,6 +200,14 @@ public class QuizService {
                 .message(isSuccess ? "축하합니다! 유의어까지 인정되어 모든 정답을 맞췄습니다." : "아쉽게도 틀린 문제가 있습니다. 정답을 확인해 보세요!")
                 .raffleCount(user.getRaffleCount())
                 .build();
+    }
+
+    private void saveWrongAnswer(User user, Word word) {
+        wrongAnswerRepository.findByUserAndWord(user, word)
+                .ifPresentOrElse(
+                    WrongAnswer::incrementCount,
+                    () -> wrongAnswerRepository.save(new WrongAnswer(user, word))
+                );
     }
 
     /**

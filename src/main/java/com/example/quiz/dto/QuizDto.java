@@ -119,6 +119,18 @@ public class QuizDto {
         private QuizMode quizMode;
     }
 
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class WrongAnswerResponse {
+        private Long id;
+        private String english;
+        private String korean;
+        private int wrongCount;
+        private java.time.LocalDateTime lastAttemptAt;
+    }
+
     public enum QuizMode {
         EN_TO_KO,
         KO_TO_EN
