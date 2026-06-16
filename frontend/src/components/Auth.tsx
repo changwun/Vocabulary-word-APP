@@ -12,6 +12,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [quizMode, setQuizMode] = useState<'EN_TO_KO' | 'KO_TO_EN'>('EN_TO_KO');
+  const [notificationTime, setNotificationTime] = useState('09:00');
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -52,6 +53,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
           phoneNumber, 
           password, 
           quizMode,
+          notificationTime: notificationTime + ':00', // HH:mm:ss 형식으로 전송
           privacyPolicyAgreed: privacyAgreed 
         });
         alert('회원가입 성공! 로그인해 주세요.');
@@ -63,6 +65,24 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSocialLogin = (provider: 'KAKAO' | 'GOOGLE') => {
+    // 실제 환경에서는 백엔드의 OAuth2 엔드포인트로 리다이렉트하거나
+    // SDK를 사용하여 토큰을 받아 백엔드 /api/auth/social-login으로 전달합니다.
+    alert(`${provider} 로그인은 현재 인프라 설정(콘솔 등록)이 필요합니다. \n백엔드 로직은 이미 준비되어 있습니다!`);
+    
+    /* 
+    // 예시: 백엔드 API 연동 흐름
+    const mockSocialData = {
+       provider: provider,
+       providerId: "12345",
+       email: "social@example.com",
+       username: "소셜유저"
+    };
+    const response = await api.post('/auth/social-login', mockSocialData);
+    onLoginSuccess(response.data);
+    */
   };
 
   return (
@@ -78,7 +98,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
               <label className="block text-sm font-bold text-gray-700 mb-1">사용자 이름</label>
               <input
                 type="text"
-                className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:outline-none transition"
+                className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:outline-none transition font-bold"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -90,37 +110,35 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
               <input
                 type="tel"
                 maxLength={13}
-                className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:outline-none transition"
+                className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:outline-none transition font-bold"
                 value={phoneNumber}
                 onChange={handlePhoneChange}
                 required
                 placeholder="010-0000-0000"
               />
             </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">기본 퀴즈 모드</label>
-              <div className="flex gap-4">
-                <label className="flex-1 flex items-center justify-center gap-2 p-3 border-2 rounded-xl cursor-pointer transition">
+            <div className="grid grid-cols-2 gap-4">
+               <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">알림 희망 시간</label>
                   <input
-                    type="radio"
-                    name="quizMode"
-                    value="EN_TO_KO"
-                    checked={quizMode === 'EN_TO_KO'}
-                    onChange={() => setQuizMode('EN_TO_KO')}
+                    type="time"
+                    className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 outline-none font-bold"
+                    value={notificationTime}
+                    onChange={(e) => setNotificationTime(e.target.value)}
+                    required
                   />
-                  <span className="text-sm font-bold">영 ➔ 한</span>
-                </label>
-                <label className="flex-1 flex items-center justify-center gap-2 p-3 border-2 rounded-xl cursor-pointer transition">
-                  <input
-                    type="radio"
-                    name="quizMode"
-                    value="KO_TO_EN"
-                    checked={quizMode === 'KO_TO_EN'}
-                    onChange={() => setQuizMode('KO_TO_EN')}
-                  />
-                  <span className="text-sm font-bold">한 ➔ 영</span>
-                </label>
-              </div>
+               </div>
+               <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">퀴즈 모드</label>
+                  <select 
+                    className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 outline-none font-bold bg-white"
+                    value={quizMode}
+                    onChange={(e) => setQuizMode(e.target.value as any)}
+                  >
+                    <option value="EN_TO_KO">영 ➔ 한</option>
+                    <option value="KO_TO_EN">한 ➔ 영</option>
+                  </select>
+               </div>
             </div>
           </>
         )}
@@ -129,7 +147,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
           <label className="block text-sm font-bold text-gray-700 mb-1">이메일 주소</label>
           <input
             type="email"
-            className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:outline-none transition"
+            className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:outline-none transition font-bold"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -141,7 +159,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
           <label className="block text-sm font-bold text-gray-700 mb-1">비밀번호</label>
           <input
             type="password"
-            className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:outline-none transition"
+            className="w-full p-3 border-2 border-gray-100 rounded-xl focus:border-blue-500 focus:outline-none transition font-bold"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -178,6 +196,31 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess }) => {
           {loading ? 'Processing...' : (isLogin ? '로그인' : '회원가입')}
         </button>
       </form>
+
+      {/* 소셜 로그인 구분선 */}
+      <div className="relative my-8">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-gray-200"></div>
+        </div>
+        <div className="relative flex justify-center text-sm">
+          <span className="px-4 bg-white text-gray-400 font-bold uppercase tracking-widest">Or Continue With</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <button 
+          onClick={() => handleSocialLogin('KAKAO')}
+          className="flex items-center justify-center gap-2 p-3 border-2 border-gray-100 rounded-xl font-bold hover:bg-yellow-50 hover:border-yellow-200 transition"
+        >
+          <span className="text-xl">🟡</span> Kakao
+        </button>
+        <button 
+          onClick={() => handleSocialLogin('GOOGLE')}
+          className="flex items-center justify-center gap-2 p-3 border-2 border-gray-100 rounded-xl font-bold hover:bg-red-50 hover:border-red-200 transition"
+        >
+          <span className="text-xl">🔴</span> Google
+        </button>
+      </div>
 
       <div className="mt-8 text-center border-t pt-6">
         <button

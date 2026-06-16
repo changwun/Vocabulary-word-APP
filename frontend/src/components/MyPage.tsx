@@ -1,21 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api/axios';
-import WrongAnswerNote from './WrongAnswerNote';
 
 interface UserInfo {
   username: string;
+  email: string;
+  phoneNumber: string;
   raffleCount: number;
   quizMode: string;
+  notificationTime: string | null;
+  notificationEnabled: boolean;
 }
 
 interface MyPageProps {
   onNavigateToEvents: () => void;
+  onNavigateToWrongAnswers: () => void;
 }
 
-const MyPage: React.FC<MyPageProps> = ({ onNavigateToEvents }) => {
+const MyPage: React.FC<MyPageProps> = ({ onNavigateToEvents, onNavigateToWrongAnswers }) => {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showWrongAnswers, setShowWrongAnswers] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editNotiTime, setEditNotiTime] = useState('09:00');
+  const [editNotiEnabled, setEditNotiEnabled] = useState(true);
 
   useEffect(() => {
     fetchUserInfo();
@@ -24,11 +32,38 @@ const MyPage: React.FC<MyPageProps> = ({ onNavigateToEvents }) => {
   const fetchUserInfo = async () => {
     try {
       const response = await api.get('/user/me');
-      setUserInfo(response.data);
+      const data = response.data;
+      setUserInfo(data);
+      setEditName(data.username);
+      setEditPhone(data.phoneNumber);
+      setEditNotiTime(data.notificationTime?.substring(0, 5) || '09:00');
+      setEditNotiEnabled(data.notificationEnabled);
     } catch (err) {
       alert('사용자 정보를 가져오는 데 실패했습니다.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const formatPhoneNumber = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length <= 3) return cleaned;
+    if (cleaned.length <= 7) return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`;
+    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7, 11)}`;
+  };
+
+  const handleUpdateProfile = async () => {
+    try {
+      await api.put('/user/me', { username: editName, phoneNumber: editPhone });
+      await api.put('/user/notification', { 
+        notificationTime: editNotiTime + ':00', 
+        notificationEnabled: editNotiEnabled 
+      });
+      alert('정보가 성공적으로 수정되었습니다.');
+      setIsEditing(false);
+      fetchUserInfo();
+    } catch (err: any) {
+      alert(err.response?.data?.message || '수정에 실패했습니다.');
     }
   };
 
@@ -44,94 +79,145 @@ const MyPage: React.FC<MyPageProps> = ({ onNavigateToEvents }) => {
 
   if (loading) return <div className="text-center mt-10 text-xl font-bold">로딩 중...</div>;
 
-  if (showWrongAnswers) {
-    return (
-      <div className="max-w-md mx-auto mt-10 p-8 bg-white rounded-3xl shadow-2xl border-b-8 border-blue-100">
-        <button 
-          onClick={() => setShowWrongAnswers(false)}
-          className="mb-8 flex items-center text-gray-400 font-black hover:text-blue-600 transition group"
-        >
-          <div className="p-2 bg-gray-50 rounded-lg mr-3 group-hover:bg-blue-50 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
-            </svg>
-          </div>
-          BACK TO DASHBOARD
-        </button>
-        <WrongAnswerNote />
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-md mx-auto mt-10 p-8 bg-white rounded-2xl shadow-2xl border-b-8 border-blue-100">
-      <h2 className="text-3xl font-black mb-10 text-center text-gray-800">My Dashboard</h2>
-      
-      <div className="space-y-8">
-        <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
-          <p className="text-sm text-gray-500 font-bold mb-1 uppercase tracking-wider">User Profile</p>
-          <p className="text-2xl font-black text-gray-800">{userInfo?.username}</p>
+    <div className="max-w-2xl mx-auto mt-10 p-4 pb-20 space-y-8">
+      {/* 프로필 섹션 */}
+      <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+        <div className="p-8 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
+          <h2 className="text-2xl font-black text-gray-800">내 프로필</h2>
+          <button 
+            onClick={() => setIsEditing(!isEditing)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition ${isEditing ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+          >
+            {isEditing ? '취소' : '정보 수정'}
+          </button>
         </div>
 
-        <div className="p-6 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200 text-white relative overflow-hidden">
-          <div className="relative z-10">
-            <p className="text-sm font-bold mb-2 opacity-80 uppercase tracking-wider">Available Raffles</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-black">{userInfo?.raffleCount}</span>
-              <span className="text-xl font-bold">Tickets</span>
+        <div className="p-8 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">사용자 이름</p>
+              {isEditing ? (
+                <input 
+                  value={editName} 
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full p-3 border-2 border-blue-100 rounded-xl focus:border-blue-500 outline-none font-bold"
+                />
+              ) : (
+                <p className="text-xl font-bold text-gray-800">{userInfo?.username}</p>
+              )}
             </div>
-            <button
-              onClick={onNavigateToEvents}
-              className="mt-6 w-full py-3 bg-white text-blue-600 rounded-xl font-black text-lg shadow-md transition transform active:scale-95 hover:bg-blue-50"
-            >
-              Go to Events
-            </button>
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">이메일 (수정불가)</p>
+              <p className="text-xl font-bold text-gray-400">{userInfo?.email}</p>
+            </div>
+            <div>
+              <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">전화번호</p>
+              {isEditing ? (
+                <input 
+                  value={editPhone} 
+                  onChange={(e) => setEditPhone(formatPhoneNumber(e.target.value))}
+                  maxLength={13}
+                  className="w-full p-3 border-2 border-blue-100 rounded-xl focus:border-blue-500 outline-none font-bold"
+                />
+              ) : (
+                <p className="text-xl font-bold text-gray-800">{userInfo?.phoneNumber}</p>
+              )}
+            </div>
           </div>
-          {/* Decorative Circle */}
-          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-blue-500 rounded-full opacity-50"></div>
         </div>
+      </div>
 
-        {/* Wrong Answer Note Button Section */}
-        <button
-          onClick={() => setShowWrongAnswers(true)}
-          className="w-full p-6 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-100 text-white flex items-center justify-between group transition transform active:scale-95"
+      {/* 알림 설정 섹션 */}
+      <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h3 className="text-xl font-black text-gray-800">퀴즈 알림 설정 🔔</h3>
+            <p className="text-sm text-gray-400">원하는 시간에 퀴즈 알림을 보내드려요.</p>
+          </div>
+          {isEditing && (
+            <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-100">
+              <span className="text-xs font-bold text-gray-500">알림 받기</span>
+              <input 
+                type="checkbox" 
+                className="w-5 h-5 rounded-lg"
+                checked={editNotiEnabled}
+                onChange={(e) => setEditNotiEnabled(e.target.checked)}
+              />
+            </div>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex-1 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+            <p className="text-xs font-bold text-blue-400 mb-1">희망 알림 시간</p>
+            {isEditing ? (
+              <input 
+                type="time" 
+                value={editNotiTime}
+                onChange={(e) => setEditNotiTime(e.target.value)}
+                className="bg-transparent text-2xl font-black text-blue-600 outline-none"
+              />
+            ) : (
+              <p className="text-2xl font-black text-blue-600">
+                {userInfo?.notificationEnabled ? (userInfo?.notificationTime?.substring(0, 5) || '미설정') : '알림 꺼짐'}
+              </p>
+            )}
+          </div>
+          <div className="p-4 bg-gray-50 rounded-2xl flex items-center justify-center min-w-[120px]">
+             <p className="text-center">
+                <span className="block text-xs font-bold text-gray-400 mb-1">마감 임박 알림</span>
+                <span className="text-sm font-black text-gray-600">자정 1시간 전</span>
+             </p>
+          </div>
+        </div>
+      </div>
+
+      {isEditing && (
+        <button 
+          onClick={handleUpdateProfile}
+          className="w-full py-5 bg-blue-600 text-white rounded-2xl font-black text-xl shadow-lg shadow-blue-100 transition-all hover:bg-blue-700 transform hover:-translate-y-1"
         >
-          <div className="text-left">
-            <p className="text-xs font-bold opacity-80 uppercase tracking-widest mb-1">Personal Study</p>
-            <p className="text-2xl font-black">나만의 단어장</p>
-          </div>
-          <div className="p-3 bg-white/20 rounded-xl group-hover:bg-white/30 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
+          수정 완료
         </button>
+      )}
 
-        <div className="p-6 bg-white rounded-2xl border-2 border-gray-100">
-          <p className="text-sm text-gray-500 font-bold mb-4 uppercase tracking-wider text-center">Quiz Preference</p>
-          <div className="grid grid-cols-2 gap-4">
+      {/* 기타 메뉴 */}
+      <div className="grid grid-cols-2 gap-4">
+        <button 
+          onClick={onNavigateToWrongAnswers}
+          className="p-6 bg-white rounded-3xl border-2 border-gray-100 hover:border-blue-400 transition-all text-left group"
+        >
+          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📖</div>
+          <p className="text-lg font-black text-gray-800">나만의 단어장</p>
+          <p className="text-xs text-gray-400 font-medium">틀린 단어 복습하기</p>
+        </button>
+        <button 
+          onClick={onNavigateToEvents}
+          className="p-6 bg-white rounded-3xl border-2 border-gray-100 hover:border-blue-400 transition-all text-left group"
+        >
+          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🎟️</div>
+          <p className="text-lg font-black text-gray-800">이벤트 응모</p>
+          <p className="text-xs text-gray-400 font-medium">경품 확인하러 가기</p>
+        </button>
+      </div>
+
+      <div className="bg-gray-50 rounded-3xl p-6 border border-gray-100">
+         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Quiz Preference</p>
+         <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => updateMode('EN_TO_KO')}
-              className={`py-4 rounded-xl border-2 font-black transition-all ${
-                userInfo?.quizMode === 'EN_TO_KO' 
-                ? 'border-blue-600 bg-blue-50 text-blue-600' 
-                : 'border-gray-100 text-gray-400 hover:border-gray-200'
-              }`}
+              className={`py-3 rounded-xl border-2 font-black transition-all ${userInfo?.quizMode === 'EN_TO_KO' ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-gray-100 text-gray-300'}`}
             >
-              EN ➔ KO
+              영 ➔ 한
             </button>
             <button
               onClick={() => updateMode('KO_TO_EN')}
-              className={`py-4 rounded-xl border-2 font-black transition-all ${
-                userInfo?.quizMode === 'KO_TO_EN' 
-                ? 'border-blue-600 bg-blue-50 text-blue-600' 
-                : 'border-gray-100 text-gray-400 hover:border-gray-200'
-              }`}
+              className={`py-3 rounded-xl border-2 font-black transition-all ${userInfo?.quizMode === 'KO_TO_EN' ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-gray-100 text-gray-300'}`}
             >
-              KO ➔ EN
+              한 ➔ 영
             </button>
-          </div>
-        </div>
+         </div>
       </div>
     </div>
   );
