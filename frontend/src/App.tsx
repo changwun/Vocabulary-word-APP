@@ -4,11 +4,12 @@ import Quiz from './components/Quiz';
 import MyPage from './components/MyPage';
 import EventList from './components/EventList';
 import AdminDashboard from './components/AdminDashboard';
+import WrongAnswerNote from './components/WrongAnswerNote';
 import api from './api/axios';
 
 function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
-  const [view, setView] = useState<'QUIZ' | 'MYPAGE' | 'EVENT' | 'ADMIN'>('QUIZ');
+  const [view, setView] = useState<'QUIZ' | 'MYPAGE' | 'EVENT' | 'ADMIN' | 'WRONG_ANSWERS'>('QUIZ');
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,9 +42,15 @@ function App() {
     if (!token) return <Auth onLoginSuccess={handleLoginSuccess} />;
     
     switch (view) {
-      case 'MYPAGE': return <MyPage onNavigateToEvents={() => setView('EVENT')} />;
+      case 'MYPAGE': return (
+        <MyPage 
+          onNavigateToEvents={() => setView('EVENT')} 
+          onNavigateToWrongAnswers={() => setView('WRONG_ANSWERS')}
+        />
+      );
       case 'EVENT': return <EventList />;
       case 'ADMIN': return <AdminDashboard />;
+      case 'WRONG_ANSWERS': return <WrongAnswerNote />;
       default: return <Quiz />;
     }
   };
