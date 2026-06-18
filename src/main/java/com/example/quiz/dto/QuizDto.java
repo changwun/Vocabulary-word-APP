@@ -1,11 +1,13 @@
 package com.example.quiz.dto;
 
+import com.example.quiz.entity.AuthProvider;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 public class QuizDto {
@@ -64,9 +66,31 @@ public class QuizDto {
     @Builder
     public static class UserInfoResponse {
         private String username;
+        private String email;
+        private String phoneNumber;
         private int raffleCount;
         private QuizMode quizMode;
         private String role;
+        private LocalTime notificationTime;
+        private boolean notificationEnabled;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class UserUpdateRequest {
+        private String username;
+        private String phoneNumber;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class NotificationUpdateRequest {
+        private LocalTime notificationTime;
+        private boolean notificationEnabled;
     }
 
     @Getter
@@ -115,13 +139,6 @@ public class QuizDto {
     @Getter
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class ModeUpdateRequest {
-        private QuizMode quizMode;
-    }
-
-    @Getter
-    @NoArgsConstructor
-    @AllArgsConstructor
     @Builder
     public static class WrongAnswerResponse {
         private Long id;
@@ -129,6 +146,13 @@ public class QuizDto {
         private String korean;
         private int wrongCount;
         private java.time.LocalDateTime lastAttemptAt;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ModeUpdateRequest {
+        private QuizMode quizMode;
     }
 
     public enum QuizMode {

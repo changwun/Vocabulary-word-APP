@@ -1,5 +1,6 @@
 package com.example.quiz.service;
 
+import com.example.quiz.entity.AuthProvider;
 import com.example.quiz.entity.User;
 import com.example.quiz.entity.UserRole;
 import com.example.quiz.repository.UserRepository;
@@ -22,7 +23,8 @@ public class AuthService {
 
 
     @Transactional
-    public void signUp(String username, String email, String phoneNumber, String password, QuizDto.QuizMode quizMode, boolean privacyPolicyAgreed) {
+    public void signUp(String username, String email, String phoneNumber, String password, 
+                       QuizDto.QuizMode quizMode, boolean privacyPolicyAgreed, java.time.LocalTime notificationTime) {
         if (userRepository.findByEmail(email).isPresent()) {
             throw new IllegalStateException("이미 가입된 이메일입니다.");
         }
@@ -46,6 +48,7 @@ public class AuthService {
                 .role(UserRole.ROLE_USER)
                 .quizMode(quizMode)
                 .privacyPolicyAgreed(privacyPolicyAgreed)
+                .notificationTime(notificationTime)
                 .build();
 
         userRepository.save(user);
@@ -59,6 +62,32 @@ public class AuthService {
         // 저장된 암호화된 비밀번호와 입력받은 비밀번호를 비교 (match 로직 시뮬레이션)
         if (!matches(password, user.getPassword())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+        }
+
+        return jwtProvider.createToken(user.getId(), user.getRole().name());
+    }
+
+    @Transactional
+    public String socialLogin(AuthProvider provider, String providerId, String email, String username) {
+        User user = userRepository.findByEmail(email)
+                .orElseGet(() -> {
+                    // 신규 유저 생성 (소셜 전용)
+                    User newUser = User.builder()
+                            .username(username)
+                            .email(email)
+                            .phoneNumber("소셜가입") // 소셜 가입 시 임시 처리, 추후 정보 수정 유도
+                            .provider(provider)
+                            .providerId(providerId)
+                            .role(UserRole.ROLE_USER)
+                            .privacyPolicyAgreed(true)
+                            .build();
+                    return userRepository.save(newUser);
+                });
+
+        // 기존 이메일 유저인 경우 소셜 연동 처리
+        if (user.getProvider() == AuthProvider.LOCAL) {
+            user.linkSocialAccount(provider, providerId);
+            userRepository.save(user);
         }
 
         return jwtProvider.createToken(user.getId(), user.getRole().name());

@@ -2,6 +2,7 @@ package com.example.quiz.controller;
 
 import com.example.quiz.service.AuthService;
 import com.example.quiz.dto.QuizDto;
+import com.example.quiz.entity.AuthProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Getter;
@@ -27,7 +28,8 @@ public class AuthController {
                 request.getPhoneNumber(),
                 request.getPassword(), 
                 request.getQuizMode(),
-                request.isPrivacyPolicyAgreed());
+                request.isPrivacyPolicyAgreed(),
+                request.getNotificationTime());
         return ResponseEntity.ok("회원가입 성공");
     }
 
@@ -35,6 +37,18 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<String> login(@RequestBody LoginRequest request) {
         String token = authService.login(request.getEmail(), request.getPassword());
+        return ResponseEntity.ok(token);
+    }
+
+    @Operation(summary = "소셜 로그인", description = "소셜 서비스(카카오/구글) 정보를 바탕으로 로그인을 처리합니다.")
+    @PostMapping("/social-login")
+    public ResponseEntity<String> socialLogin(@RequestBody SocialLoginRequest request) {
+        String token = authService.socialLogin(
+                request.getProvider(),
+                request.getProviderId(),
+                request.getEmail(),
+                request.getUsername()
+        );
         return ResponseEntity.ok(token);
     }
 
@@ -46,11 +60,20 @@ public class AuthController {
         private String password;
         private QuizDto.QuizMode quizMode;
         private boolean privacyPolicyAgreed;
+        private java.time.LocalTime notificationTime;
     }
 
     @Getter @Setter
     static class LoginRequest {
         private String email;
         private String password;
+    }
+
+    @Getter @Setter
+    static class SocialLoginRequest {
+        private AuthProvider provider;
+        private String providerId;
+        private String email;
+        private String username;
     }
 }
